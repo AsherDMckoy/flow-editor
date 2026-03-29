@@ -5,3 +5,5 @@ TODO.md
 \#*
 *#
 .env
+release/
+debug/
