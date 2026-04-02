@@ -14,12 +14,12 @@ OBJS    := $(notdir $(SRCS:.c=.o))
 # ─────────────────────────────────────────────
 #  Flags
 # ─────────────────────────────────────────────
-COMMON_FLAGS := -Wall -Wextra -std=c23
+COMMON_FLAGS := -Wall -Wextra -std=c23 $(shell pkg-config --cflags sdl3 sdl3-image)
 
-DBG_FLAGS := $(COMMON_FLAGS) -g -O0 -DDEBUG
-REL_FLAGS := $(COMMON_FLAGS) -O2 -DNDEBUG -march=native
+DBG_FLAGS := $(COMMON_FLAGS) -ggdb -O0 -DDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer -Wno-unused-parameter
+REL_FLAGS := $(COMMON_FLAGS) -O3 -DNDEBUG -march=native
 
-LIBS :=
+LIBS := $(shell pkg-config --libs sdl3 sdl3-image)
 
 # ─────────────────────────────────────────────
 #  Default: Debug
@@ -68,3 +68,14 @@ $(DBG_DIR) $(REL_DIR):
 clean:
 	rm -rf $(DBG_DIR) $(REL_DIR)
 	@echo "  cleaned."
+
+# ─────────────────────────────────────────────
+#  Run
+# ─────────────────────────────────────────────
+run: debug
+	@echo "  → running debug build..."
+	ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=$(CURDIR)/lsan.supp ./$(DBG_DIR)/$(TARGET)
+
+run-release: release
+	@echo "  → running release build..."
+	./$(REL_DIR)/$(TARGET)
