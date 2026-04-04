@@ -1,34 +1,31 @@
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <stdlib.h>
-#include <time.h>
 
-#define DEFAULT_WINDOW_HEIGHT 800
-#define DEFAULT_WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 900
+#define WINDOW_WIDTH 900
+#define global_variable static
 
-void scc(bool);
-void *scp(void *);
+typedef struct {
+    int x;
+    int y;
+} cursor;
 
-void fillColorBlackOrWhite(bool *isBlack, SDL_Renderer **renderer)
-{
-    SDL_RenderClear(*renderer);
-    if (!*isBlack) {
-        SDL_SetRenderDrawColor(*renderer, 0x00, 0x00, 0x00, 0x00);
-    }
-    else {
-        SDL_SetRenderDrawColor(*renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    }
-    *isBlack = !*isBlack;
-}
+global_variable bool running = true;
+/* global_variable bool functionKeyComboInitiated = false; */
+global_variable bool isClear = false;
 
-void scc(bool code)
-{
-    if (!code) {
-        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL Error: %s", SDL_GetError());
-        exit(1);
-    }
-}
+TTF_Font *font;
+TTF_TextEngine *textEngine;
+
+size_t pos;
+size_t line;
+
+char buffer[180000];
 
 void *scp(void *ptr)
 {
@@ -38,79 +35,96 @@ void *scp(void *ptr)
     }
     return ptr;
 }
+void scc(bool code)
+{
+    if (!code) {
+        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL Error: %s", SDL_GetError());
+        exit(1);
+    }
+}
 
+void fillColorBlackOrWhite(SDL_Renderer **renderer)
+{
+    if (!isClear) {
+        SDL_SetRenderDrawColor(*renderer, 0x00, 0x00, 0x00, 0x00);
+    }
+    else {
+        SDL_SetRenderDrawColor(*renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    }
+    isClear = !isClear;
+}
 int main(void)
 {
-
     SDL_Window *window;
     SDL_Renderer *renderer;
+    TTF_TextEngine *textEngine;
     SDL_Event event;
-
-    SDL_Log("Available renderer drivers:");
-    for (int i = 0; i < SDL_GetNumRenderDrivers(); i++) {
-        SDL_Log("%d. %s", i + 1, SDL_GetRenderDriver(i));
-    }
+    /* TODO(Asher): Create a debug mode for debug loop blocks */
+    /* SDL_Log("Available renderer drivers:"); */
+    /* for (int i = 0; i < SDL_GetNumRenderDrivers(); i++) { */
+    /*     SDL_Log("%d. %s", i + 1, SDL_GetRenderDriver(i)); */
+    /* } */
 
     scc(SDL_InitSubSystem(SDL_INIT_VIDEO));
+    scc(TTF_Init());
 
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
 
-    scc(SDL_CreateWindowAndRenderer(
-        "Flow Editor", DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
-        SDL_WINDOW_BORDERLESS | SDL_WINDOW_RESIZABLE, &window, &renderer));
+    scc(SDL_CreateWindowAndRenderer("Flow Editor", WINDOW_WIDTH, WINDOW_HEIGHT,
+                                    SDL_WINDOW_BORDERLESS, &window, &renderer));
 
-    bool isBlack = true;
-    bool running = true;
-    bool functionKeyComboInitiated = false;
-    while (running) {
-        SDL_PollEvent(&event);
-        switch (event.type) {
-        case SDL_EVENT_QUIT: {
-            SDL_Log("Destroying the window");
-            running = false;
-        } break;
-        case SDL_EVENT_WINDOW_RESIZED: {
-            fillColorBlackOrWhite(&isBlack, &renderer);
-            SDL_Log("We are painting the window after resize event");
-        } break;
-        case SDL_EVENT_KEY_DOWN: {
-            const bool *state = (const bool *)scp((void *)SDL_GetKeyboardState(NULL));
-#define CTRL_KEY_UP (!state[SDL_SCANCODE_LCTRL] && !state[SDL_SCANCODE_RCTRL])
-#define CTRL_KEY_DOWN (state[SDL_SCANCODE_LCTRL] || state[SDL_SCANCODE_RCTRL])
-            SDL_Scancode key = event.key.scancode;
-            if (CTRL_KEY_DOWN) {
-                SDL_Log("Ctrl key pressed");
-                if (!functionKeyComboInitiated && key == SDL_SCANCODE_X) {
-                    functionKeyComboInitiated = true;
-                    SDL_Log("Function sequence initiated");
-                }
-                if (key == SDL_SCANCODE_Q) {
-                    functionKeyComboInitiated = false;
-                    SDL_Log("Quit");
-                    // TODO(Asher) Handle function quit
-                }
-                if (functionKeyComboInitiated && key == SDL_SCANCODE_C) {
+    textEngine = scp(TTF_CreateRendererTextEngine(renderer));
+
+    font = (TTF_Font *)scp(TTF_OpenFont("/usr/share/fonts/TTF/PragmataPro.ttf", 18.0f));
+
+    SDL_Rect area = { .x = 0, .y = 0, .w = 100, .h = 900 };
+    TTF_Text *text;
+    scc(SDL_SetTextInputArea(window, &area, 0));
+    scc(SDL_StartTextInput(window));
+    if (SDL_TextInputActive(window)) {
+        SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+        SDL_Log("%s", SDL_GetRendererName(renderer));
+        cursor curs = { .x = 0, .y = 0 };
+        pos = 0;
+        line = 1;
+        buffer[pos] = '\0';
+        while (running) {
+            int w = 0, h = 0;
+            const float scale = 1.0f;
+
+            while (SDL_PollEvent(&event)) {
+                switch (event.type) {
+                case SDL_EVENT_QUIT: {
+                    SDL_Log("Exiting flow state");
                     running = false;
+                } break;
+                case SDL_EVENT_TEXT_INPUT: {
+                    buffer[pos] = event.text.text[0];
+                    pos += 1;
+                    buffer[pos] = '\0';
+                } break;
                 }
+
+                /* TTF_DrawRendererText(text, dst.x, dst.y); */
+                /* SDL_RenderTexture(renderer, texture, NULL, &dst); */
             }
-            if (functionKeyComboInitiated && CTRL_KEY_UP) {
-                if (key == SDL_SCANCODE_R) {
-                    SDL_Log("Reset");
-                    fillColorBlackOrWhite(&isBlack, &renderer);
-                    functionKeyComboInitiated = false;
-                }
+            text = scp(TTF_CreateText(textEngine, font, buffer, pos));
+            scc(TTF_SetTextColor(text, 0, 0, 255, 255));
+            SDL_RenderClear(renderer);
+            if (text) {
+                TTF_DrawRendererText(text, curs.x, curs.y);
             }
-        } break;
-        default: {
             SDL_RenderPresent(renderer);
-        } break;
         }
+        TTF_DestroyText(text);
+        SDL_StopTextInput(window);
+        TTF_CloseFont(font);
+        TTF_DestroyRendererTextEngine(textEngine);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        TTF_Quit();
+        SDL_Quit();
+
+        return 0;
     }
-
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-
-    SDL_Quit();
-
-    return 0;
 }
